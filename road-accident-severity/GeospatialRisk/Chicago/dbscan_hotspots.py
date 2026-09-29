@@ -24,9 +24,7 @@ CLUSTER_RISK_COLUMNS = [
 
 def run_dbscan_haversine(gdf, eps_meters=EPS_METERS, min_samples=MIN_SAMPLES):
     """Point geometries in EPSG:4326 -> DBSCAN labels (-1 = noise)."""
-    # KNOWN BUG, kept so outputs match the report: sklearn's haversine expects (lat, lon) but this
-    # passes (lon, lat): north-south distances shrink ~25x and east-west stretch ~1.34x in Chicago.
-    coords_rad = np.radians(np.column_stack([gdf.geometry.x, gdf.geometry.y])).astype(np.float32)
+    coords_rad = np.radians(np.column_stack([gdf.geometry.y, gdf.geometry.x]))  # haversine wants (lat, lon)
     return DBSCAN(
         eps=eps_meters / EARTH_RADIUS_M, min_samples=min_samples, metric="haversine", algorithm="ball_tree",
     ).fit_predict(coords_rad)
