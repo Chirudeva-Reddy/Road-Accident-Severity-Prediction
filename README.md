@@ -117,9 +117,9 @@ The first version of this project used hand-tuned DBSCAN to find hotspots. The E
 | **Tuning** | One hand-picked radius (`eps = 250 m`) | 3 km fixed distance band against a citywide baseline |
 
 The data backs this up:
-- **Volume does not predict severity.** Across the 98 clusters, crash count and severity score correlate at **r = −0.14**.
-- **DBSCAN's clusters merged into whole neighbourhoods.** At a 250 m radius the clusters chain along Chicago's street grid: **71 of 98 clusters** have exactly the same crash total as an entire community area, so they act as area totals rather than hotspots.
-- **The two methods do not overlap.** **None** of the 12 Gi* hot spots is among the 20 busiest DBSCAN clusters (Austin, Near North Side, the Loop, …).
+- **Volume does not predict severity.** Across the 113 clusters, crash count and severity score correlate at **r = −0.13**.
+- **DBSCAN's clusters merged into whole neighbourhoods.** At a 250 m radius the clusters chain along Chicago's street grid: **53 of 113 clusters** have exactly the same crash total as an entire community area, so they act as area totals rather than hotspots.
+- **The two methods do not overlap.** **None** of the 14 Gi* hot spots is among the 20 busiest DBSCAN clusters (Austin, Near North Side, the Loop, …).
 
 DBSCAN is still useful for showing where crashes are *frequent* (congestion and enforcement planning). Use Gi* for where people are most likely to be seriously hurt.
 
@@ -136,18 +136,17 @@ DBSCAN is still useful for showing where crashes are *frequent* (congestion and 
 ```
 
 #### 1. Spatially Enabled DataFrames (SEDF)
-- Loads the 98 DBSCAN cluster centroids and the 77 community-area polygons, with their risk tables, into ESRI Spatially Enabled DataFrames (`arcgis.features.GeoAccessor`).
+- Loads the 113 DBSCAN cluster centroids and the 77 community-area polygons, with their risk tables, into ESRI Spatially Enabled DataFrames (`arcgis.features.GeoAccessor`).
 
 #### 2. Getis-Ord $G_i^*$ Statistical Hot Spot Analysis
 - Computes local $G_i^*$ ($z$-scores and $p$-values) on the severity-weighted score of each cluster, 3 km fixed distance band. The statistic is implemented in NumPy inside `esri_pipeline.py` on the SEDF layers.
-- **Results (`compare_hotspots.py`)**: **12 hot spots** at 90% confidence or higher: **6 at $p < 0.05$** (5 of them at $p < 0.01$), 6 more at $p < 0.10$. Peak $z = 3.55$.
-  - The 95%+ hot spots sit in **O'Hare** and **Hegewisch**. Several of these clusters hold fewer than 100 crashes, so treat them with care: small counts make severity rates noisy.
-  - The 90% hot spots are on the **South and West sides**: Englewood, West and East Garfield Park, Washington Park, Fuller Park and Riverdale.
-  - 8 clusters are cold spots (1 at $p < 0.05$).
+- **Results (`compare_hotspots.py`)**: **14 hot spots** at 90% confidence or higher: **12 at $p < 0.05$** (6 of them at $p < 0.01$), 2 more at $p < 0.10$. Peak $z = 3.35$.
+  - All 14 sit at the city's edges: **O'Hare** in the far northwest, and the far South Side (**Hegewisch, Riverdale, South Deering, Pullman**). Half of them hold fewer than 100 crashes, so treat them with care: small counts make severity rates noisy.
+  - 2 clusters are cold spots, both only at $p < 0.10$.
 
 #### 3. Emergency Medical Response (EMS) & Trauma Center Catchment
 - Using the **ArcGIS Network Analyst** routing service, generates **5-minute, 8-minute (Golden Window), and 12-minute drive-time service areas (isochrones)** around Chicago's five Adult Level-1 Trauma Centers (*Stroger, UChicago Medicine, Northwestern, Illinois Masonic, Mount Sinai*).
-- **Findings**: Only **18 / 98 clusters** fall within the 8-minute window (3 within 5 min, 15 within 5–8 min). **80 clusters** are further out: 11 at 8–12 min and 69 beyond 12 min.
+- **Findings**: Only **18 / 113 clusters** fall within the 8-minute window (3 within 5 min, 15 within 5–8 min). **95 clusters** are further out: 11 at 8–12 min and 84 beyond 12 min.
 
 <div align="center">
   <img src="road-accident-severity/reports/esri_hotspots_and_trauma_isochrones.png" width="850" alt="ESRI Hotspots and Trauma Isochrones" />
@@ -156,8 +155,8 @@ DBSCAN is still useful for showing where crashes are *frequent* (congestion and 
 
 #### 📝 Resume Talking Points
 > - **Enterprise GIS & Spatial Data Engineering:** *Built a dual geospatial analytics pipeline with the **ESRI ArcGIS API for Python** (`arcgis.features.GeoAccessor`) and GeoPandas, turning ~940K municipal crash records into DBSCAN clusters and community-area layers loaded as Spatially Enabled DataFrames.*
-> - **Spatial Statistics & Hotspot Modeling:** *Implemented **Getis-Ord $G_i^*$** hot spot analysis on severity-weighted crash clusters (12 hot spots, 6 at $p < 0.05$) and showed that volume-based **DBSCAN** ranking missed all of them.*
-> - **Network Routing & Healthcare Accessibility:** *Modeled emergency medical response with **ArcGIS Network Analyst** 5/8/12-minute drive-time isochrones from Chicago's Level-1 Trauma Centers, finding 80 of 98 crash clusters outside the 8-minute window.*
+> - **Spatial Statistics & Hotspot Modeling:** *Implemented **Getis-Ord $G_i^*$** hot spot analysis on severity-weighted crash clusters (14 hot spots, 12 at $p < 0.05$) and showed that volume-based **DBSCAN** ranking missed all of them.*
+> - **Network Routing & Healthcare Accessibility:** *Modeled emergency medical response with **ArcGIS Network Analyst** 5/8/12-minute drive-time isochrones from Chicago's Level-1 Trauma Centers, finding 95 of 113 crash clusters outside the 8-minute window.*
 
 </details>
 
@@ -237,7 +236,18 @@ python -m GeospatialRisk.Chicago.compare_hotspots
 python -m GeospatialRisk.Chicago.build_live_map
 ```
 
-### 5. Launch the interactive dashboard
+### 5. Run the smoke tests
+
+```bash
+python -m GeospatialRisk.Chicago.test_geospatial
+```
+
+Checks the severity formula (including the no-injury-records case), that Getis-Ord $G_i^*$ flags a
+planted severe cluster, that DBSCAN measures true haversine distance (latitude first), and the
+DBSCAN-vs-Gi\* comparison quadrants. No test framework required —
+`pytest GeospatialRisk/Chicago/test_geospatial.py` also works if you have it installed.
+
+### 6. Launch the interactive dashboard
 
 ```bash
 python GeospatialRisk/Chicago/app/interactive_dash.py
@@ -257,6 +267,11 @@ geospatial study — is typeset in LaTeX:
 - **[report/report.pdf](report/report.pdf)** — 15 pages, compiled output
 - [report/report.tex](report/report.tex) — source; rebuild with `latexmk -pdf report.tex` from `report/`
 - [report/shap-percent-table.tex](report/shap-percent-table.tex) — generated from `shap_top20_percent.csv`
+
+It covers the modelling pipeline, SHAP/LIME explainability and the original DBSCAN geospatial
+study. The ESRI Getis-Ord $G_i^*$ and trauma-isochrone analysis above is newer and is **not yet
+written into the PDF** — its figure sits unused at
+[`report/figures/esri_hotspots_and_trauma_isochrones.png`](report/figures/esri_hotspots_and_trauma_isochrones.png).
 
 ---
 

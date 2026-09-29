@@ -186,7 +186,7 @@ def plot_hotspot_map(hotspots: gpd.GeoDataFrame, isochrones: gpd.GeoDataFrame | 
     is_hot = hotspots["gi_category"].str.contains("Hot Spot")
     hotspots[~is_hot].plot(ax=ax, color="#94a3b8", markersize=35, alpha=0.6, label="Not Significant / Low Risk")
     hotspots[is_hot].plot(ax=ax, color="#ef4444", markersize=90, edgecolor="#ffffff", linewidth=1.2,
-                          alpha=0.95, label="Getis-Ord Gi* Hot Spot (p < 0.05)")
+                          alpha=0.95, label="Getis-Ord Gi* Hot Spot (p < 0.10)")
 
     ax.set_title("Chicago Crash Severity Hotspots & Level-1 Trauma Isochrones\n"
                  "ESRI ArcGIS Spatial Statistics (Getis-Ord Gi*) & Network Analyst",
