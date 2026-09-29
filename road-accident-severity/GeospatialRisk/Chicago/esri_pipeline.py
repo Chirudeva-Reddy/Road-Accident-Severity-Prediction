@@ -1,10 +1,14 @@
-"""Step 4 (ArcGIS): Getis-Ord Gi* on DBSCAN clusters + trauma-centre drive-time coverage.
+"""Step 4: Getis-Ord Gi* on DBSCAN clusters + trauma-centre drive-time coverage.
 
 Inputs:  paths.CLUSTER_CENTROIDS, paths.CLUSTER_RISK (from dbscan_hotspots)
 Outputs: paths.ESRI_HOTSPOTS_CSV/GEOJSON, paths.ESRI_ISOCHRONES, map PNG in reports/ and report/figures/
 
-Only the isochrones need ArcGIS Online (Network Analyst service areas, needs ARCGIS_API_KEY
-from env/.env). If that call fails, EMS tiers fall back to a straight-line drive-time estimate.
+ArcGIS Location Platform (developer plan) features used:
+  - Network Analyst service areas (generate_service_areas): the only cloud call; needs ARCGIS_API_KEY
+    from env/.env and consumes credits. If it fails, EMS tiers fall back to a straight-line estimate.
+  - ArcGIS API for Python, local only: GIS (auth) and Spatially Enabled DataFrames for point geometry.
+Gi* is computed here in NumPy, not by an ArcGIS tool: Location Platform has no spatial analysis
+service (find_hot_spots), so no Esri hot spot tool is available on this plan.
 
 Run: python -m GeospatialRisk.Chicago.esri_pipeline [--test-auth] [--api-key KEY]
 """
@@ -189,7 +193,7 @@ def plot_hotspot_map(hotspots: gpd.GeoDataFrame, isochrones: gpd.GeoDataFrame | 
                           alpha=0.95, label="Getis-Ord Gi* Hot Spot (p < 0.10)")
 
     ax.set_title("Chicago Crash Severity Hotspots & Level-1 Trauma Isochrones\n"
-                 "ESRI ArcGIS Spatial Statistics (Getis-Ord Gi*) & Network Analyst",
+                 "Getis-Ord Gi* (Python) & ArcGIS Network Analyst Drive-Time Service Areas",
                  color="#f8fafc", fontsize=14, pad=16, weight="bold")
     ax.tick_params(colors="#64748b")
     for spine in ax.spines.values():
@@ -227,7 +231,7 @@ def run_pipeline(api_key: str | None = None) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ESRI ArcGIS hotspot + trauma coverage pipeline")
+    parser = argparse.ArgumentParser(description="Gi* hotspot + ArcGIS trauma coverage pipeline")
     parser.add_argument("--test-auth", action="store_true", help="only check the ArcGIS connection")
     parser.add_argument("--api-key", default=None, help="ArcGIS API key (default: $ARCGIS_API_KEY)")
     args = parser.parse_args()

@@ -27,7 +27,7 @@ severity-weighted risk indices.
 | | | |
 |---|---|---|
 | [📊 Dataset & clustering](#-dataset--dbscan-hotspot-clustering) | [📈 Risk score](#-weighted-severity-risk-score) | [🧠 Model results](#-model-results--explainability) |
-| [🗺️ ESRI ArcGIS analytics](#-esri-arcgis-enterprise-pipeline--spatial-statistics) | [🧱 Project structure](#-project-structure) | [🚀 Getting started](#-getting-started) |
+| [🗺️ Geospatial analytics](#-geospatial-pipeline-gi-hotspots--arcgis-location-platform) | [🧱 Project structure](#-project-structure) | [🚀 Getting started](#-getting-started) |
 | [📄 Project report](#-project-report) | [👥 Contributors](#-contributors) | |
 
 ---
@@ -100,16 +100,16 @@ severity drivers. Outputs land in [`reports/explainability_outputs/`](road-accid
 </details>
 
 <details open>
-<summary><h2>🗺️ ESRI ArcGIS Enterprise Pipeline & Spatial Statistics</h2></summary>
+<summary><h2>🗺️ Geospatial Pipeline: Gi* Hotspots & ArcGIS Location Platform</h2></summary>
 
 ### 👉 [**Open the live hotspot map**](https://chirudeva-reddy.github.io/Road-Accident-Severity-Prediction/): DBSCAN and Getis-Ord Gi* side by side, with trauma-center drive times.
 
-### Why the ESRI Gi* analysis replaces the DBSCAN hotspots
+### Why the Gi* analysis replaces the DBSCAN hotspots
 
-The first version of this project used hand-tuned DBSCAN to find hotspots. The ESRI pipeline
+The first version of this project used hand-tuned DBSCAN to find hotspots. The Gi* pipeline
 (`esri_pipeline.py`) is the more reliable way to find **where crashes are severe**, for three reasons:
 
-| | DBSCAN (previous) | ESRI Getis-Ord Gi* (current) |
+| | DBSCAN (previous) | Getis-Ord Gi* (current) |
 |---|---|---|
 | **What it measures** | Where crash *points* are dense | Where *severity-weighted* scores cluster more than chance allows |
 | **Confidence** | None. A cluster is a cluster | A $z$-score and $p$-value for every location |
@@ -128,18 +128,27 @@ DBSCAN is still useful for showing where crashes are *frequent* (congestion and 
                                              │
             ┌────────────────────────────────┴────────────────────────────────┐
             ▼                                                                 ▼
-    [DBSCAN Clustering]                                             [ESRI ArcGIS Pipeline]
+    [DBSCAN Clustering]                                             [Gi* + ArcGIS Pipeline]
    • Haversine density radius                                      • Spatially Enabled DataFrame (SEDF)
-   • Identifies traffic volume clusters                            • Getis-Ord Gi* Spatial Autocorrelation
-   • Biased toward congestion zones                                • 5/8/12-min Trauma Center Isochrones
+   • Identifies traffic volume clusters                            • Getis-Ord Gi* (NumPy)
+   • Biased toward congestion zones                                • 5/8/12-min Trauma Center Isochrones (ArcGIS)
                                                                    • EMS Response Gap Identification
 ```
 
-#### 1. Spatially Enabled DataFrames (SEDF)
-- Loads the 113 DBSCAN cluster centroids and the 77 community-area polygons, with their risk tables, into ESRI Spatially Enabled DataFrames (`arcgis.features.GeoAccessor`).
+#### 1. ArcGIS developer plan: what is used
+The project runs on an **ArcGIS Location Platform** account (Esri's developer plan). Only these features are used:
+
+| ArcGIS feature | Where | Runs on | Used for |
+|---|---|---|---|
+| **Network Analyst service areas** (`arcgis.network.analysis.generate_service_areas`) | `esri_pipeline.py` | Esri cloud, API key, uses credits | 5/8/12-min drive-time isochrones around the 5 Level-1 trauma centers |
+| **ArcGIS API for Python: `GIS`** | `esri_pipeline.py` | Local + Esri auth | Signs in with `ARCGIS_API_KEY` |
+| **ArcGIS API for Python: Spatially Enabled DataFrame** (`GeoAccessor`) | `esri_pipeline.py` | Local | Point geometry for the 113 cluster centroids and the trauma-center facilities |
+| **Esri Canvas Dark Gray basemap tiles** | `app/dashapp.py`, `app/interactive_dash.py` | Esri tile servers | Dark basemap and labels in both Dash dashboards |
+
+**Not used:** Esri's Hot Spot Analysis / `find_hot_spots`. Location Platform does not include the spatial analysis service, so Gi* is computed in NumPy (next section). Crash records and community areas are handled in GeoPandas, not ArcGIS.
 
 #### 2. Getis-Ord $G_i^*$ Statistical Hot Spot Analysis
-- Computes local $G_i^*$ ($z$-scores and $p$-values) on the severity-weighted score of each cluster, 3 km fixed distance band. The statistic is implemented in NumPy inside `esri_pipeline.py` on the SEDF layers.
+- Computes local $G_i^*$ ($z$-scores and $p$-values) on the severity-weighted score of each cluster, 3 km fixed distance band. The statistic is implemented in NumPy inside `esri_pipeline.py` (binary weights, self included, two-sided normal p-values); it is not an Esri tool.
 - **Results (`compare_hotspots.py`)**: **14 hot spots** at 90% confidence or higher: **12 at $p < 0.05$** (6 of them at $p < 0.01$), 2 more at $p < 0.10$. Peak $z = 3.35$.
   - All 14 sit at the city's edges: **O'Hare** in the far northwest, and the far South Side (**Hegewisch, Riverdale, South Deering, Pullman**). Half of them hold fewer than 100 crashes, so treat them with care: small counts make severity rates noisy.
   - 2 clusters are cold spots, both only at $p < 0.10$.
@@ -149,12 +158,12 @@ DBSCAN is still useful for showing where crashes are *frequent* (congestion and 
 - **Findings**: Only **18 / 113 clusters** fall within the 8-minute window (3 within 5 min, 15 within 5–8 min). **95 clusters** are further out: 11 at 8–12 min and 84 beyond 12 min.
 
 <div align="center">
-  <img src="road-accident-severity/reports/esri_hotspots_and_trauma_isochrones.png" width="850" alt="ESRI Hotspots and Trauma Isochrones" />
-  <p><em>Figure: ESRI Getis-Ord Gi* Hotspots overlaid with Chicago Level-1 Trauma Center 5, 8, and 12-minute drive-time isochrones.</em></p>
+  <img src="road-accident-severity/reports/esri_hotspots_and_trauma_isochrones.png" width="850" alt="Gi* Hotspots and ArcGIS Trauma Isochrones" />
+  <p><em>Figure: Getis-Ord Gi* hotspots (Python) overlaid with ArcGIS Network Analyst 5, 8, and 12-minute drive-time isochrones from Chicago's Level-1 Trauma Centers.</em></p>
 </div>
 
 #### 📝 Resume Talking Points
-> - **Enterprise GIS & Spatial Data Engineering:** *Built a dual geospatial analytics pipeline with the **ESRI ArcGIS API for Python** (`arcgis.features.GeoAccessor`) and GeoPandas, turning ~940K municipal crash records into DBSCAN clusters and community-area layers loaded as Spatially Enabled DataFrames.*
+> - **Geospatial Data Engineering:** *Built a geospatial analytics pipeline in **GeoPandas** and the **ArcGIS API for Python**, turning ~940K municipal crash records into haversine DBSCAN clusters and community-area risk layers.*
 > - **Spatial Statistics & Hotspot Modeling:** *Implemented **Getis-Ord $G_i^*$** hot spot analysis on severity-weighted crash clusters (14 hot spots, 12 at $p < 0.05$) and showed that volume-based **DBSCAN** ranking missed all of them.*
 > - **Network Routing & Healthcare Accessibility:** *Modeled emergency medical response with **ArcGIS Network Analyst** 5/8/12-minute drive-time isochrones from Chicago's Level-1 Trauma Centers, finding 95 of 113 crash clusters outside the 8-minute window.*
 
@@ -171,14 +180,14 @@ Road-Accident-Severity-Prediction/
 └── road-accident-severity/
     ├── modelling.py                   # Training & cross-validation
     ├── explainability.py              # SHAP / LIME analysis
-    ├── reports/                       # Confusion matrix, CV comparison, ESRI map figure
+    ├── reports/                       # Confusion matrix, CV comparison, hotspot map figure
     └── GeospatialRisk/Chicago/
         ├── paths.py                   # Every input/output path, in pipeline order
         ├── cleaning.py                # Crash data cleaning pipeline
         ├── prepare_geodata.py         # GeoDataFrame + spatial join (77 community areas)
         ├── dbscan_hotspots.py         # Per-community-area DBSCAN clustering
         ├── severity_pipeline.py       # Severity formula + crash / community-area risk
-        ├── esri_pipeline.py           # ArcGIS SEDF, Getis-Ord Gi*, and Network Analyst
+        ├── esri_pipeline.py           # Getis-Ord Gi* (NumPy) + ArcGIS Network Analyst
         ├── compare_hotspots.py        # DBSCAN vs. Getis-Ord Gi* statistical benchmark
         ├── build_live_map.py          # Bakes outputs into the live hotspot map (docs/index.html)
         ├── test_geospatial.py         # Smoke tests: severity formula, Gi*, comparison quadrants
@@ -223,7 +232,7 @@ python -m GeospatialRisk.Chicago.severity_pipeline
 > The modules use relative imports, so run them with `-m` from inside `road-accident-severity/`
 > — the repo root folder name contains hyphens and is not a valid Python package name.
 
-### 4. Run the ESRI ArcGIS analytics pipeline
+### 4. Run the Gi* + ArcGIS pipeline
 
 ```bash
 # Execute SEDF conversion, Getis-Ord Gi* hotspots, and trauma isochrone routing
@@ -269,7 +278,7 @@ geospatial study — is typeset in LaTeX:
 - [report/shap-percent-table.tex](report/shap-percent-table.tex) — generated from `shap_top20_percent.csv`
 
 It covers the modelling pipeline, SHAP/LIME explainability and the original DBSCAN geospatial
-study. The ESRI Getis-Ord $G_i^*$ and trauma-isochrone analysis above is newer and is **not yet
+study. The Getis-Ord $G_i^*$ and trauma-isochrone analysis above is newer and is **not yet
 written into the PDF** — its figure sits unused at
 [`report/figures/esri_hotspots_and_trauma_isochrones.png`](report/figures/esri_hotspots_and_trauma_isochrones.png).
 

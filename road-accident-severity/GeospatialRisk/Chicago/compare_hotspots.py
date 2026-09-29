@@ -31,7 +31,7 @@ def compare_hotspots(df: pd.DataFrame) -> pd.DataFrame:
     df["methodology_insight"] = np.select(
         [hot & busy, hot, busy],
         ["Dual Priority: High Volume & High Severity",
-         "Hidden Hazard: Low Volume, High Severity (Isolated by Esri)",
+         "Hidden Hazard: Low Volume, High Severity (Isolated by Gi*)",
          "Congestion Artefact: High Volume, Low Severity"],
         default="Baseline / Low Risk",
     )

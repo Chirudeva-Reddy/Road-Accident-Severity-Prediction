@@ -1,7 +1,7 @@
 <title>Chicago Crash Hotspots</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="DBSCAN crash-volume clusters vs. ESRI Getis-Ord Gi* severity hot spots in Chicago, with Level-1 trauma center drive-time coverage.">
+<meta name="description" content="DBSCAN crash-volume clusters vs. Getis-Ord Gi* severity hot spots in Chicago, with Level-1 trauma center drive-time coverage.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=Geist+Mono:wght@400;500&display=swap">
@@ -182,7 +182,7 @@ footer p{max-width:70ch}
 <div class="wrap">
   <header class="hero">
     <div class="hero-copy">
-      <span class="tag reveal">DBSCAN vs. ESRI Getis-Ord Gi*</span>
+      <span class="tag reveal">DBSCAN vs. Getis-Ord Gi*</span>
       <h1 class="reveal" style="--d:1">Where crashes pile up is not where people get hurt.</h1>
       <p class="lede reveal" style="--d:2">Crash volume and crash severity point to different streets. Only the Gi* analysis can tell them apart.</p>
       <div class="reveal" style="--d:3"><a class="btn" href="#maps">Compare the maps <span class="ico" aria-hidden="true">&#8599;</span></a></div>
@@ -206,7 +206,7 @@ footer p{max-width:70ch}
         <div class="legend"><span><i style="background:var(--vol);opacity:.5"></i>Top 20 by volume</span><span><i style="background:var(--vol);opacity:.22"></i>Other clusters</span><span><i style="background:var(--iso);opacity:.5"></i>5, 8, 12 min to trauma care</span></div>
       </div></div>
       <div class="bezel reveal" style="--d:1"><div class="plate flush">
-        <div class="maphead"><h3>ESRI Gi*: severity hot spots</h3><p>Severity-weighted z-score in a 3 km band. Size follows |z|.</p></div>
+        <div class="maphead"><h3>Gi*: severity hot spots</h3><p>Severity-weighted z-score in a 3 km band. Size follows |z|.</p></div>
         <svg class="gi" id="m-gi" role="img" aria-label="Getis-Ord Gi star hot and cold spots"></svg>
         <div class="legend"><span><i style="background:var(--hot)"></i>Hot, p &lt; 0.05</span><span><i style="background:var(--hot-soft)"></i>Hot, p &lt; 0.10</span><span><i style="background:var(--cold)"></i>Cold</span><span><i style="background:var(--ns)"></i>Not significant</span></div>
       </div></div>
@@ -245,7 +245,7 @@ footer p{max-width:70ch}
 
   <footer>
     <p>Data: Chicago Traffic Crashes, City of Chicago open data portal, cleaned and clustered per community area with haversine DBSCAN (eps 250 m, min 12 crashes). Severity weights: 3 fatal, 2 incapacitating, 1 non-incapacitating.</p>
-    <p>Gi* is computed in <span class="mono">esri_pipeline.py</span> on ArcGIS Spatially Enabled DataFrames with a 3 km fixed distance band. Several of the 95%+ hot spots (O'Hare, Hegewisch) hold fewer than 100 crashes, so their severity rates are noisy. Drive-time polygons come from the ArcGIS routing service. Rebuild with <span class="mono">python -m GeospatialRisk.Chicago.build_live_map</span>.</p>
+    <p>Gi* is computed in <span class="mono">esri_pipeline.py</span> in NumPy with a 3 km fixed distance band. Several of the 95%+ hot spots (O'Hare, Hegewisch) hold fewer than 100 crashes, so their severity rates are noisy. Drive-time polygons come from the ArcGIS Network Analyst service-area service (ArcGIS Location Platform). Rebuild with <span class="mono">python -m GeospatialRisk.Chicago.build_live_map</span>.</p>
   </footer>
 </div>
 
