@@ -174,13 +174,15 @@ Road-Accident-Severity-Prediction/
     ├── explainability.py              # SHAP / LIME analysis
     ├── reports/                       # Confusion matrix, CV comparison, ESRI map figure
     └── GeospatialRisk/Chicago/
+        ├── paths.py                   # Every input/output path, in pipeline order
         ├── cleaning.py                # Crash data cleaning pipeline
         ├── prepare_geodata.py         # GeoDataFrame + spatial join (77 community areas)
         ├── dbscan_hotspots.py         # Per-community-area DBSCAN clustering
-        ├── severity_pipeline.py       # Crash / area / cluster risk scoring
+        ├── severity_pipeline.py       # Severity formula + crash / community-area risk
         ├── esri_pipeline.py           # ArcGIS SEDF, Getis-Ord Gi*, and Network Analyst
         ├── compare_hotspots.py        # DBSCAN vs. Getis-Ord Gi* statistical benchmark
         ├── build_live_map.py          # Bakes outputs into the live hotspot map (docs/index.html)
+        ├── test_geospatial.py         # Smoke tests: severity formula, Gi*, comparison quadrants
         └── app/
             ├── dashapp.py             # Choropleth & hotspot dashboard
             └── interactive_dash.py    # Dash app with live filters

@@ -20,7 +20,7 @@ from shapely.ops import unary_union
 from . import paths
 
 PAGE = paths.CHICAGO_DIR / "app" / "live_comparison_map.html"
-DOCS = MODULE_DIR.parents[2] / "docs" / "index.html"
+DOCS = paths.CHICAGO_DIR.parents[2] / "docs" / "index.html"  # GitHub Pages copy
 
 WIDTH = 600
 TOLERANCE = 0.0006  # degrees (~50 m); invisible at this map scale

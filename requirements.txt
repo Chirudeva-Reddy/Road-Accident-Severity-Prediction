@@ -1,7 +1,10 @@
 gdown
 pandas
 seaborn
-matplotlib.pyplot
-sklearn
-pathlib
-imblearn  
+matplotlib
+scikit-learn
+imbalanced-learn
+geopandas>=1.0
+python-calamine
+arcgis
+python-dotenv
