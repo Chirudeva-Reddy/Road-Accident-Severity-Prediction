@@ -194,7 +194,7 @@ footer p{max-width:70ch}
 
   <section id="maps" aria-labelledby="maps-h">
     <div class="head">
-      <h2 id="maps-h" class="reveal">Same 98 clusters, two answers</h2>
+      <h2 id="maps-h" class="reveal">Same clusters, two answers</h2>
       <div class="tools reveal" style="--d:1" role="toolbar" aria-label="Map layers">
         <button class="chip" id="t-iso" aria-pressed="true">Trauma drive-time</button>
         <button class="chip" id="t-shade" aria-pressed="false">Community risk index</button>
@@ -238,7 +238,7 @@ footer p{max-width:70ch}
   </section>
 
   <section id="hot" aria-labelledby="hot-h">
-    <h2 id="hot-h" class="reveal">The 12 hot spots DBSCAN ranks low</h2>
+    <h2 id="hot-h" class="reveal">The hot spots DBSCAN ranks low</h2>
     <div class="bezel reveal"><div class="plate flush tablewrap"><table>
       <thead><tr><th>Cluster</th><th>Community area</th><th>Crashes</th><th>Volume rank</th><th>Fatal</th><th>Severe</th><th>Gi* z</th><th>p</th><th>Trauma access</th></tr></thead>
       <tbody id="hot-rows"></tbody>
@@ -287,6 +287,10 @@ footer p{max-width:70ch}
     card("k2", 3, `${count(C.reduce((s, c) => s + c.n, 0))}<span>crashes inside ${C.length} DBSCAN clusters</span>`) +
     card("k3 alert", 4, `${count(C.filter((c) => !within8(c)).length)}<span>of ${C.length} clusters are more than 8 minutes from a trauma center</span>`) +
     card("k4", 5, `${count(hot.filter((c) => c.p < 0.05).length)}<span>hot spots at 95% confidence or higher, ${hot.filter((c) => c.p >= 0.05).length} more at 90%</span>`);
+
+  // counts in headings come from the data so a pipeline rerun can't leave them stale
+  $("maps-h").textContent = `Same ${C.length} clusters, two answers`;
+  $("hot-h").textContent = `The ${hot.length} hot spots DBSCAN ranks low`;
 
   // why-Gi* bento
   $("whygrid").innerHTML = `
