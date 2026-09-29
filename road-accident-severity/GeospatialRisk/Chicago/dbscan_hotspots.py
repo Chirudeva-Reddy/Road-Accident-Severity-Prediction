@@ -1,199 +1,88 @@
-from pathlib import Path
+"""Step 2: density hotspots via DBSCAN (haversine), run per community area.
+
+Reads paths.CRASHES_WITH_AREAS; writes crashes with `cluster_id` (-1 = noise),
+cluster centroids, and paths.CLUSTER_RISK (the table esri_pipeline scores).
+Clustering per area bounds the ball-tree memory; clusters cannot span area borders.
+"""
+
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point
 from sklearn.cluster import DBSCAN
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CLUSTERS_SOURCE_PATH = PROJECT_ROOT / "data" / "output" / "chicago_crashes_with_areas.geojson"
-CLUSTERS_OUTPUT_PATH = PROJECT_ROOT / "data" / "output" / "chicago_crashes_with_clusters.geojson"
-CENTROIDS_OUTPUT_PATH = PROJECT_ROOT / "data" / "output" / "chicago_cluster_centroids.geojson"
-RISK_TABLE_PATH = PROJECT_ROOT / "data" / "output" / "cluster_risk_table.csv"
+from . import paths
+from .severity_pipeline import INJURY_COLUMNS, coerce_injuries, weighted_severity
+
+EARTH_RADIUS_M = 6_371_000.0
+EPS_METERS = 250.0  # dense urban grid: ~2 city blocks
+MIN_SAMPLES = 12
+
+CLUSTER_RISK_COLUMNS = [
+    "sum_fatal", "sum_incapacitating", "sum_non_incapacitating", "sum_reported_not_evident", "sum_no_indication",
+]  # same order as INJURY_COLUMNS
 
 
-def prepare_coords_for_haversine(gdf):
-    # get coordinates in radians for haversine distance calculation
-    if gdf.empty:
-        raise ValueError("GeoDataFrame must contain at least one row")
-
-    if "geometry" not in gdf.columns:
-        raise ValueError("GeoDataFrame must include a 'geometry' column")
-
-    coords_deg = np.vstack([gdf.geometry.x, gdf.geometry.y]).T
-    coords_rad = np.radians(coords_deg).astype(np.float32, copy=False)
-    print(f"Prepared coords with shape {coords_rad.shape}, example (deg): {coords_deg[0]}")
-    return coords_rad
-
-
-def run_dbscan_haversine(coords_rad, eps_meters=250.0, min_samples=12):
-    # run DBSCAN clustering using haversine distance
-    if coords_rad.ndim != 2 or coords_rad.shape[1] != 2:
-        raise ValueError("Coordinate array must be shape (n_samples, 2)")
-
-    eps_radians = eps_meters / 6371000.0
-    print(
-        "Using eps=250m for dense urban Chicago hotspots converted to radians",
-        f"({eps_radians:.9f}) and min_samples={min_samples} to reduce noise.",
-    )
-    clusterer = DBSCAN(
-        eps=eps_radians,
-        min_samples=min_samples,
-        metric="haversine",
-        algorithm="ball_tree",
-    )
-    labels = clusterer.fit_predict(coords_rad)
-    return labels
+def run_dbscan_haversine(gdf, eps_meters=EPS_METERS, min_samples=MIN_SAMPLES):
+    """Point geometries in EPSG:4326 -> DBSCAN labels (-1 = noise)."""
+    coords_rad = np.radians(np.column_stack([gdf.geometry.y, gdf.geometry.x]))  # haversine wants (lat, lon)
+    return DBSCAN(
+        eps=eps_meters / EARTH_RADIUS_M, min_samples=min_samples, metric="haversine", algorithm="ball_tree",
+    ).fit_predict(coords_rad)
 
 
 def compute_cluster_centroids(gdf):
-    # calculate centroid points for each cluster
-    clusters = gdf[gdf["cluster_id"] >= 0].copy()
-    if clusters.empty:
-        return gpd.GeoDataFrame(
-            columns=["cluster_id", "centroid_lon", "centroid_lat", "num_points", "geometry"],
-            geometry="geometry",
-            crs="EPSG:4326",
-        )
-
+    """Mean lon/lat per cluster (noise excluded)."""
+    clusters = gdf[gdf["cluster_id"] >= 0]
     agg = clusters.groupby("cluster_id").agg(
-        centroid_lon=("geometry", lambda pts: pts.x.mean()),
-        centroid_lat=("geometry", lambda pts: pts.y.mean()),
+        centroid_lon=("geometry", lambda p: p.x.mean()),
+        centroid_lat=("geometry", lambda p: p.y.mean()),
         num_points=("geometry", "size"),
-    )
-    agg = agg.reset_index()
-    agg["geometry"] = agg.apply(
-        lambda row: Point(row["centroid_lon"], row["centroid_lat"]), axis=1
-    )
-    centroids = gpd.GeoDataFrame(agg, geometry="geometry", crs="EPSG:4326")
-    return centroids
+    ).reset_index()
+    return gpd.GeoDataFrame(agg, geometry=gpd.points_from_xy(agg.centroid_lon, agg.centroid_lat), crs="EPSG:4326")
 
 
 def compute_cluster_severity(gdf):
-    # calculate severity metrics for each cluster
-    cluster_rows = gdf[gdf["cluster_id"] >= 0].copy()
-    if cluster_rows.empty:
-        return pd.DataFrame(
-            columns=[
-                "cluster_id",
-                "total_crashes",
-                "sum_fatal",
-                "sum_incapacitating",
-                "sum_non_incapacitating",
-                "sum_reported_not_evident",
-                "sum_no_indication",
-                "weighted_score",
-            ]
-        )
-
-    agg = cluster_rows.groupby("cluster_id").agg(
+    """Injury sums and weighted_score (severity_pipeline formula) per cluster."""
+    clusters = coerce_injuries(gdf[gdf["cluster_id"] >= 0])
+    agg = clusters.groupby("cluster_id").agg(
         total_crashes=("cluster_id", "size"),
-        sum_fatal=("INJURIES_FATAL", "sum"),
-        sum_incapacitating=("INJURIES_INCAPACITATING", "sum"),
-        sum_non_incapacitating=("INJURIES_NON_INCAPACITATING", "sum"),
-        sum_reported_not_evident=("INJURIES_REPORTED_NOT_EVIDENT", "sum"),
-        sum_no_indication=("INJURIES_NO_INDICATION", "sum"),
-    )
-    agg = agg.reset_index()
-
-    def weighted_score(row):
-        numerator = (
-            3 * row["sum_fatal"]
-            + 2 * row["sum_incapacitating"]
-            + 1 * row["sum_non_incapacitating"]
-            + 0.5 * row["sum_reported_not_evident"]
-        )
-        denom = (
-            row["sum_fatal"]
-            + row["sum_incapacitating"]
-            + row["sum_non_incapacitating"]
-            + row["sum_reported_not_evident"]
-            + row["sum_no_indication"]
-        )
-        return numerator / denom if denom > 0 else 0.0
-
-    agg["weighted_score"] = agg.apply(weighted_score, axis=1)
+        **{out: (src, "sum") for out, src in zip(CLUSTER_RISK_COLUMNS, INJURY_COLUMNS)},
+    ).reset_index()
+    agg["weighted_score"] = weighted_severity(*(agg[c] for c in CLUSTER_RISK_COLUMNS))
     return agg
 
 
-def _cluster_subset(subset, start_cluster_id):
-    # run clustering on a subset of data
-    coords_rad = prepare_coords_for_haversine(subset)
-    labels = run_dbscan_haversine(coords_rad)
-
-    subset = subset.copy()
-    adjusted_labels = labels.copy()
-    mask = adjusted_labels >= 0
-    if mask.any():
-        adjusted_labels[mask] = adjusted_labels[mask] + start_cluster_id
-        next_cluster_id = int(adjusted_labels[mask].max() + 1)
-    else:
-        next_cluster_id = start_cluster_id
-    subset["cluster_id"] = adjusted_labels
-    return subset, next_cluster_id
-
-
 def compute_dbscan_hotspots(gdf, group_col="community_area_number"):
-    # run DBSCAN clustering per community area to manage memory
-    if group_col not in gdf.columns:
-        grouped_iter = [(None, gdf)]
-    else:
-        grouped_iter = gdf.groupby(group_col, dropna=False)
+    """Cluster each area separately, then renumber so cluster ids are globally unique."""
+    groups = gdf.groupby(group_col, dropna=False) if group_col in gdf.columns else [(None, gdf)]
 
-    clustered_parts = []
-    next_cluster_id = 0
-    for group_value, subset in grouped_iter:
-        if isinstance(group_value, tuple):  # pandas may return tuples for multi-index
-            group_value = group_value[0]
-        print(f"Running DBSCAN for {group_col}={group_value} (rows={len(subset)})")
-        clustered_subset, next_cluster_id = _cluster_subset(subset, next_cluster_id)
-        clustered_parts.append(clustered_subset)
+    parts, next_id = [], 0
+    for _, subset in groups:
+        labels = run_dbscan_haversine(subset)
+        labels[labels >= 0] += next_id
+        next_id = max(next_id, labels.max() + 1)
+        parts.append(subset.assign(cluster_id=labels))
 
-    clustered = pd.concat(clustered_parts, ignore_index=True)
-
-    num_clusters = clustered.loc[clustered["cluster_id"] >= 0, "cluster_id"].nunique()
-    noise = int((clustered["cluster_id"] == -1).sum())
-    print(f"Clusters found (excluding noise): {num_clusters}")
-    print(f"Noise points (label == -1): {noise}")
-
-    cluster_sizes = clustered["cluster_id"].value_counts().sort_index()
-    print("Cluster sizes (label:count):")
-    print(cluster_sizes.to_string())
-
-    centroids = compute_cluster_centroids(clustered)
-    severity = compute_cluster_severity(clustered)
-    return clustered, centroids, severity
+    clustered = pd.concat(parts, ignore_index=True)
+    print(f"Clusters: {next_id}, noise points: {(clustered['cluster_id'] == -1).sum()}")
+    return clustered, compute_cluster_centroids(clustered), compute_cluster_severity(clustered)
 
 
 def main():
-    gdf = gpd.read_file(CLUSTERS_SOURCE_PATH)
-
-    if gdf.crs is None:
-        raise ValueError("Input GeoDataFrame must have a CRS")
-    if gdf.crs.to_epsg() != 4326:
-        gdf = gdf.to_crs(epsg=4326)
-
+    gdf = gpd.read_file(paths.CRASHES_WITH_AREAS)
     if gdf.empty:
         raise ValueError("No crashes available for clustering")
+    if gdf.crs is None:
+        raise ValueError("Input GeoDataFrame must have a CRS")
+    gdf = gdf.to_crs(epsg=4326)
 
-    clustered_gdf, centroids, severity = compute_dbscan_hotspots(gdf)
-
-    CLUSTERS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    clustered_gdf.to_file(CLUSTERS_OUTPUT_PATH, driver="GeoJSON")
-    print(f"Saved clustered crashes to {CLUSTERS_OUTPUT_PATH}")
-
-    centroids.to_file(CENTROIDS_OUTPUT_PATH, driver="GeoJSON")
-    print(f"Saved cluster centroids to {CENTROIDS_OUTPUT_PATH}")
-
-    severity.to_csv(RISK_TABLE_PATH, index=False)
-    print(f"Saved cluster risk table to {RISK_TABLE_PATH}")
+    clustered, centroids, severity = compute_dbscan_hotspots(gdf)
+    clustered.to_file(paths.CRASHES_WITH_CLUSTERS, driver="GeoJSON")
+    centroids.to_file(paths.CLUSTER_CENTROIDS, driver="GeoJSON")
+    severity.to_csv(paths.CLUSTER_RISK, index=False)
 
     print("Worst 10 clusters by severity score:")
-    print(severity.sort_values("weighted_score", ascending=False).head(10))
-    print("Largest 10 clusters by total crashes:")
-    print(severity.sort_values("total_crashes", ascending=False).head(10))
-    print("Top 10 centroid coordinates:")
-    print(centroids[["cluster_id", "centroid_lon", "centroid_lat"]].head(10))
+    print(severity.nlargest(10, "weighted_score"))
 
 
 if __name__ == "__main__":

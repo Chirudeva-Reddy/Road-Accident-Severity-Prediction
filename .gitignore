@@ -11,6 +11,8 @@ Thumbs.db
 .venv/
 venv/
 ENV/
+.env
+.env.*
 .idea/
 .vscode/
 
@@ -34,3 +36,6 @@ road-accident-severity/GeospatialRisk/Chicago/dataset/
 *.out
 *.toc
 *.synctex.gz
+
+# 30 MB intermediate, regenerate with prepare_geodata.py
+road-accident-severity/GeospatialRisk/Chicago/output/chicago_crashes_with_areas.geojson
