@@ -28,6 +28,14 @@ import plotly.express as px
 from shapely.geometry import Point
 from datetime import datetime
 
+# Esri Canvas Dark Gray: base tiles under the data, labels on top. Keyless public tiles; attribution required.
+_ESRI_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_{}/MapServer/tile/{{z}}/{{y}}/{{x}}"
+ESRI_DARK_BASEMAP = dict(style="white-bg", layers=[
+    dict(sourcetype="raster", source=[_ESRI_TILES.format("Base")], below="traces",
+         sourceattribution="Esri, HERE, Garmin, &copy; OpenStreetMap contributors"),
+    dict(sourcetype="raster", source=[_ESRI_TILES.format("Reference")]),
+])
+
 # Project Configuration
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "Chicago" / "output"
@@ -835,7 +843,7 @@ def create_interactive_dashboard() -> Dash:
             # Update layout
             fig.update_layout(
                 mapbox=dict(
-                    style="open-street-map",
+                    **ESRI_DARK_BASEMAP,
                     center=dict(lat=41.8781, lon=-87.6298),
                     zoom=10
                 ),

@@ -67,6 +67,14 @@ def get_risk_category(score):
 community_areas['risk_category'] = community_areas['mean_weighted_severity'].apply(get_risk_category)
 
 # Create professional color scale
+# Esri Canvas Dark Gray: base tiles under the data, labels on top. Keyless public tiles; attribution required.
+_ESRI_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_{}/MapServer/tile/{{z}}/{{y}}/{{x}}"
+ESRI_DARK_BASEMAP = dict(style="white-bg", layers=[
+    dict(sourcetype="raster", source=[_ESRI_TILES.format("Base")], below="traces",
+         sourceattribution="Esri, HERE, Garmin, &copy; OpenStreetMap contributors"),
+    dict(sourcetype="raster", source=[_ESRI_TILES.format("Reference")]),
+])
+
 RISK_COLORS = {
     "No Data": "#f0f0f0",
     "Low": "#2E8B57",      # Sea green
@@ -123,7 +131,7 @@ def create_professional_choropleth(show_crashes=False, metric="weighted_score"):
             mode='markers',
             marker=dict(
                 size=2,
-                color='black',
+                color='#e2e8f0',
                 opacity=0.4
             ),
             hovertemplate='Crash Location<extra></extra>',
@@ -146,7 +154,7 @@ def create_professional_choropleth(show_crashes=False, metric="weighted_score"):
     # Professional layout
     fig.update_layout(
         mapbox=dict(
-            style="open-street-map",
+            **ESRI_DARK_BASEMAP,
             center=dict(lat=41.8781, lon=-87.6298),
             zoom=10
         ),
