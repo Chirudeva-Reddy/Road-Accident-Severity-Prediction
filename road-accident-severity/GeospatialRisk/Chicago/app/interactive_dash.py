@@ -140,19 +140,19 @@ def load_geospatial_data() -> Dict[str, Any]:
     
     # Optimize data types and create indexes for performance
     # The crash data already has temporal columns: CRASH_HOUR, CRASH_DAY_OF_WEEK, CRASH_MONTH
-    crashes['crash_hour'] = crashes['CRASH_HOUR']
-    crashes['crash_day_of_week'] = crashes['CRASH_DAY_OF_WEEK'] 
-    crashes['crash_month'] = crashes['CRASH_MONTH']
+    crashes['crash_hour'] = pd.to_numeric(crashes['CRASH_HOUR'], errors='coerce').fillna(0)
+    crashes['crash_day_of_week'] = pd.to_numeric(crashes['CRASH_DAY_OF_WEEK'], errors='coerce').fillna(0)
+    crashes['crash_month'] = pd.to_numeric(crashes['CRASH_MONTH'], errors='coerce').fillna(1)
     
     # Create year column (assuming recent data, use 2023 as default)
     crashes['crash_year'] = 2023
     
     # Map injury columns to expected names
-    crashes['fatal'] = crashes['INJURIES_FATAL']
-    crashes['serious'] = crashes['INJURIES_INCAPACITATING']
-    crashes['moderate'] = crashes['INJURIES_NON_INCAPACITATING']
-    crashes['minor'] = crashes['INJURIES_REPORTED_NOT_EVIDENT']
-    crashes['none'] = crashes['INJURIES_NO_INDICATION']
+    crashes['fatal'] = pd.to_numeric(crashes['INJURIES_FATAL'], errors='coerce').fillna(0)
+    crashes['serious'] = pd.to_numeric(crashes['INJURIES_INCAPACITATING'], errors='coerce').fillna(0)
+    crashes['moderate'] = pd.to_numeric(crashes['INJURIES_NON_INCAPACITATING'], errors='coerce').fillna(0)
+    crashes['minor'] = pd.to_numeric(crashes['INJURIES_REPORTED_NOT_EVIDENT'], errors='coerce').fillna(0)
+    crashes['none'] = pd.to_numeric(crashes['INJURIES_NO_INDICATION'], errors='coerce').fillna(0)
     
     # Create categorical indexes for faster filtering
     for col in ['WEATHER_CONDITION', 'LIGHTING_CONDITION', 'ROADWAY_SURFACE_COND',
@@ -737,12 +737,10 @@ def create_interactive_dashboard() -> Dash:
                         surface, crash_types, severity):
         
         try:
-            ctx = callback_context
-            
-            # Determine which button was clicked
-            if ctx.triggered:
-                trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-            else:
+            try:
+                ctx = callback_context
+                trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if (ctx and getattr(ctx, 'triggered', None)) else None
+            except Exception:
                 trigger_id = None
             
             # Reset filters if reset button clicked
@@ -758,8 +756,19 @@ def create_interactive_dashboard() -> Dash:
             
             # Convert stored data back to DataFrames (reconstruct GeoDataFrames from JSON)
             crashes_df = gpd.GeoDataFrame.from_features(store_data['crashes']['features'], crs='EPSG:4326')
+            for col in ['fatal', 'serious', 'moderate', 'minor', 'none', 'crash_hour', 'crash_day_of_week', 'crash_month', 'crash_year']:
+                if col in crashes_df.columns:
+                    crashes_df[col] = pd.to_numeric(crashes_df[col], errors='coerce').fillna(0)
+
             community_areas_df = gpd.GeoDataFrame.from_features(store_data['community_areas']['features'], crs='EPSG:4326')
+            for col in ['total_crashes', 'fatal', 'serious', 'moderate', 'minor', 'none', 'mean_weighted_severity', 'risk_index']:
+                if col in community_areas_df.columns:
+                    community_areas_df[col] = pd.to_numeric(community_areas_df[col], errors='coerce').fillna(0)
+
             clusters_df = pd.DataFrame(store_data['clusters'])  # Already processed, no geometry
+            for col in ['centroid_lat', 'centroid_lon', 'total_crashes', 'weighted_score']:
+                if col in clusters_df.columns:
+                    clusters_df[col] = pd.to_numeric(clusters_df[col], errors='coerce').fillna(0)
             
             # Build filter dictionary
             filters = {
@@ -826,7 +835,7 @@ def create_interactive_dashboard() -> Dash:
             # Update layout
             fig.update_layout(
                 mapbox=dict(
-                    style="carto-positron",
+                    style="open-street-map",
                     center=dict(lat=41.8781, lon=-87.6298),
                     zoom=10
                 ),

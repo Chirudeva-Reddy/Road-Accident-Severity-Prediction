@@ -146,7 +146,7 @@ def create_professional_choropleth(show_crashes=False, metric="weighted_score"):
     # Professional layout
     fig.update_layout(
         mapbox=dict(
-            style="carto-positron",
+            style="open-street-map",
             center=dict(lat=41.8781, lon=-87.6298),
             zoom=10
         ),
